@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "River Diary",
+    "slug": "river-diary",
+    "scheme": "riverdiary",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.aleskrejzl.riverdiary",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.aleskrejzl.riverdiary",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker",
+      "@maplibre/maplibre-react-native",
+      "expo-sharing"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ab7a502c-9be8-4cf3-a369-4e0b58aa0185"
+      }
+    }
+  }
+}

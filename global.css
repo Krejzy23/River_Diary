@@ -1,0 +1,24 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+
+@import "nativewind/theme";
+
+@theme {
+  --color-ink-400: #64748b;
+  --color-ink-500: #536271;
+  --color-ink-600: #3e4c59;
+  --color-ink-700: #243b53;
+  --color-ink-900: #102a43;
+
+  --color-reed-700: #2d6a4f;
+
+  --color-river-50: #f3fafb;
+  --color-river-100: #d6edea;
+  --color-river-200: #a8dadc;
+  --color-river-600: #218099;
+  --color-river-700: #1d6e86;
+
+  --color-sun-100: #fff1cc;
+  --color-sun-800: #946200;
+}
