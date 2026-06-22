@@ -98,7 +98,7 @@ export function AuthScreen() {
 
                     <View className="gap-1">
                       <Text className="text-[34px] font-black leading-[39px] text-white">
-                        River Diary
+                        Vodácký Deník
                       </Text>
                       <Text className="text-sm font-bold leading-5 text-river-100">
                         Přihlas se a měj svoje sjezdy, posádky a kilometry bezpečně uložené.

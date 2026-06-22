@@ -42,10 +42,10 @@ export function OverviewScreen() {
           <View className="min-h-[118px] flex-row items-start gap-3 rounded-lg bg-ink-900 px-3.5 py-4">
             <View className="min-w-0 flex-1 gap-1">
               <Text className="text-[30px] font-black leading-[35px] text-white">
-                River Diary
+                Vodácký deník
               </Text>
               <Text className="text-sm font-bold leading-5 text-river-100">
-                Vodácký deník pro trasy, posádky, lodě a kilometry.
+                pro trasy, posádky, lodě a kilometry.
               </Text>
             </View>
             <View style={{ transform: [{ scaleX: -1 }] }} className="-mr-4">
