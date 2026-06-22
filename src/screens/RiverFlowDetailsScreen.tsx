@@ -7,7 +7,7 @@ import Svg, {
   Rect,
   Text as SvgText,
 } from "react-native-svg";
-import { Droplets, Gauge, MapPin, RefreshCw, Waves } from "lucide-react-native";
+import { Gauge, MapPin, RefreshCw, Waves } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Rope from "../../assets/svg/rope.svg";
@@ -118,6 +118,64 @@ function alertTone(tone: NavigabilityTone) {
   };
 }
 
+function alertSurfaceTone(tone: NavigabilityTone) {
+  if (tone === "danger") {
+    return {
+      button: "border-rose-100 bg-rose-100",
+      card: "border-rose-100 bg-white",
+      feature: "border-rose-100 bg-rose-100",
+    };
+  }
+
+  if (tone === "warning") {
+    return {
+      button: "border-sun-100 bg-sun-100",
+      card: "border-sun-100 bg-white",
+      feature: "border-sun-100 bg-sun-100",
+    };
+  }
+
+  if (tone === "good") {
+    return {
+      button: "border-reed-100 bg-reed-100",
+      card: "border-reed-100 bg-white",
+      feature: "border-reed-100 bg-reed-100",
+    };
+  }
+
+  if (tone === "strong") {
+    return {
+      button: "border-river-100 bg-river-100",
+      card: "border-river-100 bg-white",
+      feature: "border-river-100 bg-river-100",
+    };
+  }
+
+  return {
+    button: "border-river-100 bg-white",
+    card: "border-river-100 bg-white",
+    feature: "border-river-100 bg-river-50",
+  };
+}
+
+function getLevelDeltaLabel(levelCm?: number, minLevelCm?: number) {
+  if (levelCm === undefined || minLevelCm === undefined) {
+    return "bez měření";
+  }
+
+  const difference = Math.round(levelCm - minLevelCm);
+
+  if (difference > 0) {
+    return "+" + difference + " cm nad minimem";
+  }
+
+  if (difference < 0) {
+    return Math.abs(difference) + " cm pod minimem";
+  }
+
+  return "na minimu";
+}
+
 function DetailMetric({ label, value }: { label: string; value: string }) {
   return (
     <View className="min-h-[58px] flex-1 rounded-lg border border-river-100 bg-river-50 px-2.5 py-2">
@@ -177,11 +235,11 @@ function createChartScale(
 function createLevelPath(
   points: RiverFlowSeriesPoint[],
   min: number,
-  max: number
+  max: number,
 ) {
   const levelPoints = points.filter(
     (point): point is RiverFlowSeriesPoint & { levelCm: number } =>
-      point.levelCm !== undefined
+      point.levelCm !== undefined,
   );
 
   if (levelPoints.length === 0) {
@@ -244,7 +302,7 @@ function getTrendLabel(points: RiverFlowSeriesPoint[]) {
   const levels = points
     .filter(
       (point): point is RiverFlowSeriesPoint & { levelCm: number } =>
-        point.levelCm !== undefined
+        point.levelCm !== undefined,
     )
     .slice(-8);
 
@@ -267,25 +325,42 @@ function formatPointDate(value?: string) {
 
 function LevelTrendChart({
   isLoading,
+  onSelectPart,
   points,
   section,
+  sections,
+  selectedPart,
 }: {
   isLoading: boolean;
+  onSelectPart: (part: string) => void;
   points: RiverFlowSeriesPoint[];
   section?: RiverFlowSnapshot;
+  sections: RiverFlowSnapshot[];
+  selectedPart?: string;
 }) {
   const thresholds = getChartThresholds(section);
   const scale = createChartScale(points, thresholds);
   const path = createLevelPath(points, scale.min, scale.max);
   const levelPoints = points.filter(
     (point): point is RiverFlowSeriesPoint & { levelCm: number } =>
-      point.levelCm !== undefined
+      point.levelCm !== undefined,
   );
   const latestPoint = [...levelPoints].reverse()[0];
   const firstPoint = levelPoints[0];
   const dateTickIndexes = getDateTickIndexes(points);
   const levelAxisTicks = getLevelAxisTicks(scale.min, scale.max);
   const trend = getTrendLabel(points);
+  const currentLevelValue =
+    latestPoint?.levelCm !== undefined
+      ? latestPoint.levelCm.toFixed(0) + " cm"
+      : "-";
+  const minimumLevelValue = section
+    ? formatLevel(section.paddlingLimits.minLevelCm) + " cm"
+    : "-";
+  const surfaceTone = section
+    ? alertSurfaceTone(section.alert.tone)
+    : alertSurfaceTone("unknown");
+  const labelTone = section ? alertTone(section.alert.tone) : alertTone("unknown");
 
   return (
     <View className="gap-3 rounded-lg border border-river-100 bg-white p-3.5 shadow-sm shadow-ink-900/10">
@@ -296,16 +371,69 @@ function LevelTrendChart({
           </Text>
           <Text className="text-sm font-semibold leading-5 text-ink-600">
             {section
-              ? section.paddlingSectionName + " - vodočet " + section.stationName
+              ? section.paddlingSectionName +
+                " - vodočet " +
+                section.stationName
               : "Vyber úsek toku"}
           </Text>
         </View>
-        <View className="rounded-lg bg-river-50 px-3 py-2">
-          <Text className="text-xs font-black uppercase text-river-800">
+        <View className={"rounded-lg px-3 py-2 " + labelTone.badge}>
+          <Text className={"text-xs font-black uppercase " + labelTone.label}>
             {trend}
           </Text>
         </View>
       </View>
+
+      {sections.length > 0 ? (
+        <View className="rounded-lg bg-river-50 p-2">
+          <View className="flex-row flex-wrap gap-2">
+            {sections.map((nextSection) => {
+              const selected = selectedPart === nextSection.part;
+              const nextTone = alertTone(nextSection.alert.tone);
+              const nextSurfaceTone = alertSurfaceTone(nextSection.alert.tone);
+              const levelLabel =
+                nextSection.levelCm !== undefined
+                  ? formatLevel(nextSection.levelCm) + " cm"
+                  : "bez měření";
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  className={
+                    selected
+                      ? "min-w-[104px] flex-1 rounded-lg border border-ink-900 bg-ink-900 px-3 py-2.5"
+                      : "min-w-[104px] flex-1 rounded-lg border px-3 py-2.5 " +
+                        nextSurfaceTone.button
+                  }
+                  key={nextSection.part}
+                  onPress={() => onSelectPart(nextSection.part)}
+                >
+                  <Text
+                    className={
+                      selected
+                        ? "text-sm font-black text-white"
+                        : "text-sm font-black text-ink-900"
+                    }
+                  >
+                    {nextSection.part}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    className={
+                      selected
+                        ? "mt-0.5 text-[11px] font-black uppercase text-river-100"
+                        : "mt-0.5 text-[11px] font-black uppercase " +
+                          nextTone.label
+                    }
+                  >
+                    {levelLabel + " | " + nextSection.alert.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       <View className="overflow-hidden rounded-lg border border-river-100 bg-river-50">
         <Svg
@@ -333,7 +461,7 @@ function LevelTrendChart({
                 fontWeight="600"
                 textAnchor="end"
               >
-                {tick.toFixed(0)}{" "}cm
+                {tick.toFixed(0)} cm
               </SvgText>
             );
           })}
@@ -373,10 +501,10 @@ function LevelTrendChart({
                   index === 3
                     ? "#BE123C"
                     : index === 2
-                    ? "#1D6E86"
-                    : index === 1
-                      ? "#2D6A4F"
-                      : "#F5B83B"
+                      ? "#1D6E86"
+                      : index === 1
+                        ? "#2D6A4F"
+                        : "#F5B83B"
                 }
                 strokeDasharray="4 5"
                 strokeOpacity={0.5}
@@ -448,14 +576,38 @@ function LevelTrendChart({
       </View>
 
       <View className="flex-row gap-2">
-        <DetailMetric
-          label="Minimum"
-          value={
-            section
-              ? formatLevel(section.paddlingLimits.minLevelCm) + " cm"
-              : "-"
-          }
-        />
+        <View className={"min-h-[82px] flex-1 rounded-lg border px-3 py-3 " + surfaceTone.feature}>
+          <Text className={"text-[11px] font-black uppercase " + labelTone.label}>
+            Aktuálně
+          </Text>
+          <Text
+            numberOfLines={1}
+            className={"mt-1 text-[28px] font-black leading-[32px] " + labelTone.label}
+          >
+            {currentLevelValue}
+          </Text>
+          <Text className={"mt-1 text-xs font-black uppercase " + labelTone.label}>
+            {getLevelDeltaLabel(
+              latestPoint?.levelCm,
+              section?.paddlingLimits.minLevelCm,
+            )}
+          </Text>
+        </View>
+
+        <View className="min-h-[82px] flex-1 rounded-lg border border-river-100 bg-river-50 px-3 py-3">
+          <Text className="text-[11px] font-black uppercase text-ink-500">
+            Minimum
+          </Text>
+          <Text className="mt-1 text-[28px] font-black leading-[32px] text-ink-900">
+            {minimumLevelValue}
+          </Text>
+          <Text className="mt-1 text-xs font-black uppercase text-river-800">
+            hranice sjízdnosti
+          </Text>
+        </View>
+      </View>
+
+      <View className="flex-row gap-2">
         <DetailMetric
           label="Dobrá od"
           value={
@@ -475,14 +627,6 @@ function LevelTrendChart({
         <DetailMetric
           label="Do"
           value={formatPointDate(latestPoint?.measuredAt)}
-        />
-        <DetailMetric
-          label="Aktuálně"
-          value={
-            latestPoint?.levelCm !== undefined
-              ? latestPoint.levelCm.toFixed(0) + " cm"
-              : "-"
-          }
         />
       </View>
     </View>
@@ -507,9 +651,17 @@ function GuideRow({ description, label, tone }: NavigabilityAlert) {
 function SectionCard({ section }: { section: RiverFlowSnapshot }) {
   const waterTone = statusTone(section.status);
   const boatTone = alertTone(section.alert.tone);
+  const surfaceTone = alertSurfaceTone(section.alert.tone);
+  const flowValue =
+    section.flowM3s === undefined ? "-" : formatFlow(section.flowM3s) + " m³/s";
+  const goodRange =
+    formatLevel(section.paddlingLimits.goodFromCm) +
+    "-" +
+    formatLevel(section.paddlingLimits.goodToCm) +
+    " cm";
 
   return (
-    <View className="overflow-hidden rounded-lg border border-river-100 bg-white shadow-sm shadow-ink-900/10">
+    <View className={"overflow-hidden rounded-lg border shadow-sm shadow-ink-900/10 " + surfaceTone.card}>
       <View className={"h-1.5 " + waterTone.rail} />
       <View className="gap-3 p-3.5">
         <View className="flex-row items-start justify-between gap-3">
@@ -529,53 +681,56 @@ function SectionCard({ section }: { section: RiverFlowSnapshot }) {
         </View>
 
         <View className="flex-row gap-2">
-          <DetailMetric
-            label="Minimum"
-            value={formatLevel(section.paddlingLimits.minLevelCm) + " cm"}
-          />
-          <DetailMetric
-            label="Dobrá voda"
-            value={
-              formatLevel(section.paddlingLimits.goodFromCm) +
-              "-" +
-              formatLevel(section.paddlingLimits.goodToCm)
-            }
-          />
+          <View className={"min-h-[96px] flex-1 rounded-lg border px-3 py-3 " + surfaceTone.feature}>
+            <Text className={"text-[11px] font-black uppercase " + boatTone.label}>
+              Aktuální hladina
+            </Text>
+            <View className="mt-1 flex-row items-end gap-1">
+              <Text
+                numberOfLines={1}
+                className={"text-[32px] font-black leading-[36px] " + boatTone.label}
+              >
+                {formatLevel(section.levelCm)}
+              </Text>
+              <Text className={"pb-1 text-sm font-black " + boatTone.label}>
+                cm
+              </Text>
+            </View>
+            <Text className={"mt-1 text-xs font-black uppercase " + boatTone.label}>
+              {getLevelDeltaLabel(
+                section.levelCm,
+                section.paddlingLimits.minLevelCm,
+              )}
+            </Text>
+          </View>
+
+          <View className="min-h-[96px] flex-1 rounded-lg border border-river-100 bg-river-50 px-3 py-3">
+            <Text className="text-[11px] font-black uppercase text-ink-500">
+              Minimum
+            </Text>
+            <View className="mt-1 flex-row items-end gap-1">
+              <Text className="text-[32px] font-black leading-[36px] text-ink-900">
+                {formatLevel(section.paddlingLimits.minLevelCm)}
+              </Text>
+              <Text className="pb-1 text-sm font-black text-ink-500">cm</Text>
+            </View>
+            <Text className="mt-1 text-xs font-black uppercase text-river-800">
+              limit pro úsek
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-2">
+          <DetailMetric label="Průtok" value={flowValue} />
+          <DetailMetric label="Dobrá voda" value={goodRange} />
+        </View>
+
+        <View className="flex-row gap-2">
           <DetailMetric
             label="Horní limit"
             value={formatLevel(section.paddlingLimits.tooHighCm) + " cm"}
           />
-        </View>
-
-
-        <View className="flex-row gap-2">
-          <View className="flex-1 rounded-lg bg-ink-900 px-3 py-3">
-            <Text className="text-[11px] font-black uppercase text-river-100">
-              Průtok
-            </Text>
-            <View className="mt-1 flex-row items-end gap-1">
-              <Text className="text-[30px] font-black leading-[34px] text-white">
-                {formatFlow(section.flowM3s)}
-              </Text>
-              <Text className="pb-1 text-sm font-black text-river-100">
-                m³/s
-              </Text>
-            </View>
-          </View>
-
-
-          <View className="w-[102px] rounded-lg bg-river-50 px-3 py-3">
-            <Text className="text-[11px] font-black uppercase text-ink-500">
-              Hladina
-            </Text>
-            <View className="mt-1 flex-row items-end gap-1">
-              <Text className="text-[26px] font-black leading-[31px] text-ink-900">
-                {formatLevel(section.levelCm)}
-              </Text>
-              <Text className="pb-1 text-xs font-black text-ink-500">cm</Text>
-            </View>
-          </View>
-        <DetailMetric label="Obtížnost" value={section.difficulty} />
+          <DetailMetric label="Obtížnost" value={section.difficulty} />
         </View>
 
         <View className="gap-2 rounded-lg bg-river-50 p-3">
@@ -673,15 +828,17 @@ export function RiverFlowDetailsScreen({ route }: RiverFlowDetailsScreenProps) {
   }, [selectedSection?.gaugeId]);
 
   const latestMeasurement = sections.find(
-    (section) => section.measuredAt
+    (section) => section.measuredAt,
   )?.measuredAt;
   const goodSections = useMemo(
     () =>
       sections.filter(
         (section) =>
-          section.alert.tone === "good" || section.alert.tone === "strong"
+          section.levelCm !== undefined &&
+          section.alert.tone !== "danger" &&
+          section.alert.tone !== "unknown",
       ).length,
-    [sections]
+    [sections],
   );
 
   return (
@@ -720,41 +877,13 @@ export function RiverFlowDetailsScreen({ route }: RiverFlowDetailsScreenProps) {
         </View>
       </View>
 
-      <View className="gap-3 rounded-lg border border-river-100 bg-white p-3.5 shadow-sm shadow-ink-900/10">
-        <View className="flex-row flex-wrap gap-2">
-          {sections.map((section) => {
-            const selected = selectedSection?.part === section.part;
-
-            return (
-              <Pressable
-                accessibilityRole="button"
-                className={
-                  selected
-                    ? "rounded-lg border border-ink-900 bg-ink-900 px-3 py-2"
-                    : "rounded-lg border border-river-100 bg-river-50 px-3 py-2"
-                }
-                key={section.part}
-                onPress={() => setSelectedPart(section.part)}
-              >
-                <Text
-                  className={
-                    selected
-                      ? "text-sm font-black text-white"
-                      : "text-sm font-black text-ink-700"
-                  }
-                >
-                  {section.part}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
       <LevelTrendChart
         isLoading={isSeriesLoading}
+        onSelectPart={setSelectedPart}
         points={series}
         section={selectedSection}
+        sections={sections}
+        selectedPart={selectedSection?.part}
       />
 
       <View className="gap-3 rounded-lg border border-river-100 bg-white p-3.5 shadow-sm shadow-ink-900/10">

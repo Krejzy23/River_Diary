@@ -1,5 +1,11 @@
 import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import {
   ChevronDown,
   ChevronRight,
@@ -20,9 +26,19 @@ import {
   fetchPopularRiverFlows,
   RiverFlowOverview,
   RiverFlowSnapshot,
+  RiverSectionPart,
 } from "../services/riverFlows";
 import { RootStackParamList } from "../types/navigation";
 import { formatDateTime } from "../utils/date";
+
+type RiverPartFilter = "all" | RiverSectionPart;
+
+const riverPartFilters: Array<{ label: string; value: RiverPartFilter }> = [
+  { label: "Celá řeka", value: "all" },
+  { label: "Horní tok", value: "Horní tok" },
+  { label: "Střední tok", value: "Střední tok" },
+  { label: "Dolní tok", value: "Dolní tok" },
+];
 
 function alertTone(tone: RiverFlowSnapshot["alert"]["tone"]) {
   if (tone === "danger") {
@@ -56,48 +72,90 @@ function alertTone(tone: RiverFlowSnapshot["alert"]["tone"]) {
   return { badge: "bg-river-50", label: "text-ink-600", rail: "bg-ink-400" };
 }
 
-function overviewTone(flow: RiverFlowOverview) {
-  if (
-    flow.navigableSections.some((section) => section.alert.tone === "strong")
-  ) {
+function isNavigableSection(section: RiverFlowSnapshot) {
+  return (
+    section.levelCm !== undefined &&
+    section.alert.tone !== "danger" &&
+    section.alert.tone !== "unknown"
+  );
+}
+
+function getVisibleSections(
+  flow: RiverFlowOverview,
+  partFilter: RiverPartFilter,
+) {
+  return partFilter === "all"
+    ? flow.sections
+    : flow.sections.filter((section) => section.part === partFilter);
+}
+
+function getVisibleNavigableSections(
+  flow: RiverFlowOverview,
+  partFilter: RiverPartFilter,
+) {
+  return getVisibleSections(flow, partFilter).filter(isNavigableSection);
+}
+
+function getRiverPartFilterLabel(partFilter: RiverPartFilter) {
+  return (
+    riverPartFilters.find((filter) => filter.value === partFilter)?.label ??
+    "Celá řeka"
+  );
+}
+
+function overviewTone(flow: RiverFlowOverview, partFilter: RiverPartFilter) {
+  const sections = getVisibleSections(flow, partFilter);
+  const navigableSections = sections.filter(isNavigableSection);
+
+  if (navigableSections.some((section) => section.alert.tone === "strong")) {
     return alertTone("strong");
   }
 
-  if (flow.navigableSections.some((section) => section.alert.tone === "good")) {
+  if (navigableSections.some((section) => section.alert.tone === "good")) {
     return alertTone("good");
   }
 
-  if (flow.navigableSections.length > 0) {
+  if (navigableSections.length > 0) {
     return alertTone("warning");
   }
 
-  if (flow.sections.some((section) => section.alert.tone === "unknown")) {
+  if (sections.some((section) => section.alert.tone === "unknown")) {
     return alertTone("unknown");
   }
 
   return alertTone("danger");
 }
 
-function getNavigableSummary(flow: RiverFlowOverview) {
-  if (flow.navigableSections.length === 0) {
-    return flow.sections.some((section) => section.levelCm === undefined)
+function getNavigableSummary(
+  flow: RiverFlowOverview,
+  partFilter: RiverPartFilter,
+) {
+  const sections = getVisibleSections(flow, partFilter);
+  const navigableSections = sections.filter(isNavigableSection);
+
+  if (navigableSections.length === 0) {
+    return sections.some((section) => section.levelCm === undefined)
       ? "Sjízdnost některých úseků nejde ověřit."
       : "Zatím bez jistého sjízdného úseku.";
   }
 
-  return flow.navigableSections
+  return navigableSections
     .map((section) => section.part.replace(" tok", ""))
     .join(", ");
 }
 
-function getBestSectionLabel(flow: RiverFlowOverview) {
-  const strong = flow.navigableSections.find(
+function getBestSectionLabel(
+  flow: RiverFlowOverview,
+  partFilter: RiverPartFilter,
+) {
+  const navigableSections = getVisibleNavigableSections(flow, partFilter);
+  const strong = navigableSections.find(
     (section) => section.alert.tone === "strong",
   );
-  const good = flow.navigableSections.find(
+  const good = navigableSections.find(
     (section) => section.alert.tone === "good",
   );
-  const navigable = strong ?? good ?? flow.navigableSections[0];
+  const navigable = strong ?? good ?? navigableSections[0];
 
   return navigable
     ? navigable.alert.label +
@@ -108,8 +166,14 @@ function getBestSectionLabel(flow: RiverFlowOverview) {
     : "Detail ukáže profily, limity a grafy";
 }
 
-function getFlowNavigabilityLabel(flow: RiverFlowOverview) {
-  return flow.navigableSections.length + "/" + flow.sections.length + " sjízdné";
+function getFlowNavigabilityLabel(
+  flow: RiverFlowOverview,
+  partFilter: RiverPartFilter,
+) {
+  const sections = getVisibleSections(flow, partFilter);
+  const navigableSections = sections.filter(isNavigableSection);
+
+  return navigableSections.length + "/" + sections.length + " sjízdné";
 }
 
 function FlowMetric({ label, value }: { label: string; value: string }) {
@@ -134,6 +198,7 @@ function RiverSelector({
   onSelect,
   onToggle,
   selectedRiver,
+  selectedPartFilter,
   totalNavigableSections,
   totalSections,
 }: {
@@ -142,18 +207,19 @@ function RiverSelector({
   onSelect: (river: string | null) => void;
   onToggle: () => void;
   selectedRiver: string | null;
+  selectedPartFilter: RiverPartFilter;
   totalNavigableSections: number;
   totalSections: number;
 }) {
   const selectedFlow = flows.find((flow) => flow.river === selectedRiver);
   const selectedLabel = selectedFlow?.river ?? "Všechny řeky";
   const selectedSummary = selectedFlow
-    ? getFlowNavigabilityLabel(selectedFlow)
+    ? getFlowNavigabilityLabel(selectedFlow, selectedPartFilter)
     : totalNavigableSections + "/" + totalSections + " sjízdné";
   const ChevronIcon = isOpen ? ChevronUp : ChevronDown;
 
   return (
-    <View className="overflow-hidden rounded-lg border border-river-100 bg-white shadow-sm shadow-ink-900/10">
+    <View className="overflow-hidden rounded-lg border border-river-600 bg-river-100/80 shadow-sm shadow-ink-900/10">
       <Pressable
         accessibilityRole="button"
         className="flex-row items-center gap-3 p-3.5"
@@ -166,7 +232,10 @@ function RiverSelector({
           <Text className="text-[11px] font-extrabold uppercase text-ink-500">
             Vyber řeku
           </Text>
-          <Text numberOfLines={1} className="mt-0.5 text-lg font-black text-ink-900">
+          <Text
+            numberOfLines={1}
+            className="mt-0.5 text-lg font-black text-ink-900"
+          >
             {selectedLabel}
           </Text>
         </View>
@@ -180,7 +249,11 @@ function RiverSelector({
 
       {isOpen ? (
         <View className="border-t border-river-100 bg-river-50 p-2">
-          <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
+          <ScrollView
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: 280 }}
+          >
             <View className="gap-2">
               <Pressable
                 accessibilityRole="button"
@@ -242,7 +315,7 @@ function RiverSelector({
                           : "text-xs font-black uppercase text-river-800"
                       }
                     >
-                      {getFlowNavigabilityLabel(flow)}
+                      {getFlowNavigabilityLabel(flow, selectedPartFilter)}
                     </Text>
                   </Pressable>
                 );
@@ -251,6 +324,61 @@ function RiverSelector({
           </ScrollView>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function RiverPartFilterBar({
+  selectedPartFilter,
+  onSelect,
+}: {
+  selectedPartFilter: RiverPartFilter;
+  onSelect: (partFilter: RiverPartFilter) => void;
+}) {
+  return (
+    <View className="gap-2 rounded-lg border border-river-100 bg-white p-3.5 shadow-sm shadow-ink-900/10">
+      <View className="flex-row items-center gap-2">
+        <View className="h-9 w-9 items-center justify-center rounded-lg bg-river-700">
+          <Waves color="#FFFFFF" size={18} strokeWidth={2.5} />
+        </View>
+        <View className="min-w-0 flex-1">
+          <Text className="text-[11px] font-extrabold uppercase text-ink-500">
+            Zobrazení toku
+          </Text>
+          <Text className="text-base font-black text-ink-900">
+            {getRiverPartFilterLabel(selectedPartFilter)}
+          </Text>
+        </View>
+      </View>
+
+      <View className="flex-row flex-wrap gap-2">
+        {riverPartFilters.map((filter) => {
+          const selected = selectedPartFilter === filter.value;
+
+          return (
+            <Pressable
+              accessibilityRole="button"
+              className={
+                selected
+                  ? "rounded-lg border border-ink-900 bg-ink-900 px-3 py-2"
+                  : "rounded-lg border border-river-100 bg-river-50 px-3 py-2"
+              }
+              key={filter.value}
+              onPress={() => onSelect(filter.value)}
+            >
+              <Text
+                className={
+                  selected
+                    ? "text-sm font-black text-white"
+                    : "text-sm font-black text-ink-700"
+                }
+              >
+                {filter.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -267,23 +395,70 @@ function SectionChip({ section }: { section: RiverFlowSnapshot }) {
   );
 }
 
-function FlowCard({
-  flow,
-  onPress,
-}: {
-  flow: RiverFlowOverview;
-  onPress: () => void;
-}) {
-  const tone = overviewTone(flow);
-  const navigableCount = flow.navigableSections.length;
-  const sectionCount = flow.sections.length;
+function fullRiverSectionTone(tone: RiverFlowSnapshot["alert"]["tone"]) {
+  if (tone === "danger") {
+    return "border-rose-300 bg-rose-100/50";
+  }
+
+  if (tone === "warning") {
+    return "border-amber-400 bg-sun-100/50";
+  }
+
+  if (tone === "good") {
+    return "border-emerald-500 bg-emerald-100/50";
+  }
+
+  if (tone === "strong") {
+    return "border-river-100 bg-river-100";
+  }
+
+  return "border-river-50 bg-river-50";
+}
+
+function FullRiverSectionRow({ section }: { section: RiverFlowSnapshot }) {
+  const tone = alertTone(section.alert.tone);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      className="overflow-hidden rounded-lg border border-river-100 bg-white shadow-sm shadow-ink-900/10"
-      onPress={onPress}
+    <View
+      className={
+        "flex-row items-start gap-2 rounded-lg border px-3 py-2.5 " +
+        fullRiverSectionTone(section.alert.tone)
+      }
     >
+      <View className="min-w-0 flex-1">
+        <View className="flex-row items-center justify-between gap-2">
+          <Text className="min-w-0 flex-1 text-sm font-black leading-5 text-ink-900">
+            {section.paddlingSectionName}
+          </Text>
+          <Text className={"text-[11px] font-black uppercase " + tone.label}>
+            {section.alert.label}
+          </Text>
+        </View>
+        <Text className="mt-0.5 text-xs font-semibold leading-4 text-ink-600">
+          {section.sectionDescription}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function FlowCard({
+  flow,
+  onOpenDetail,
+  partFilter,
+}: {
+  flow: RiverFlowOverview;
+  onOpenDetail: () => void;
+  partFilter: RiverPartFilter;
+}) {
+  const tone = overviewTone(flow, partFilter);
+  const visibleSections = getVisibleSections(flow, partFilter);
+  const navigableCount = visibleSections.filter(isNavigableSection).length;
+  const sectionCount = visibleSections.length;
+  const detailLabel = partFilter === "all" ? "Detail řeky" : "Detail toku";
+
+  return (
+    <View className="overflow-hidden rounded-lg border border-river-100 bg-white shadow-sm shadow-ink-900/10">
       <View className={"h-1.5 " + tone.rail} />
       <View className="gap-3 p-3.5">
         <View className="flex-row items-start justify-between gap-3">
@@ -309,11 +484,19 @@ function FlowCard({
           </View>
         </View>
 
-        <View className="flex-row flex-wrap gap-2">
-          {flow.sections.map((section) => (
-            <SectionChip key={section.gaugeId} section={section} />
-          ))}
-        </View>
+        {partFilter === "all" ? (
+          <View className="gap-2">
+            {visibleSections.map((section) => (
+              <FullRiverSectionRow key={section.gaugeId} section={section} />
+            ))}
+          </View>
+        ) : (
+          <View className="flex-row flex-wrap gap-2">
+            {visibleSections.map((section) => (
+              <SectionChip key={section.gaugeId} section={section} />
+            ))}
+          </View>
+        )}
 
         <View className="gap-2 rounded-lg bg-river-50 px-3 py-2.5">
           <View className="flex-row items-center gap-2">
@@ -323,24 +506,37 @@ function FlowCard({
             </Text>
           </View>
           <Text className="text-sm font-black leading-5 text-ink-900">
-            {getNavigableSummary(flow)}
+            {getNavigableSummary(flow, partFilter)}
           </Text>
         </View>
 
-        <View className="flex-row items-center justify-between gap-3 rounded-lg border border-river-100 px-3 py-2.5">
-          <View className="min-w-0 flex-1 flex-row items-center gap-2">
-            <Gauge color="#1D6E86" size={17} strokeWidth={2.5} />
-            <Text
-              numberOfLines={1}
-              className="flex-1 text-sm font-black text-ink-900"
-            >
-              {getBestSectionLabel(flow)}
-            </Text>
+        <Pressable
+          accessibilityRole="button"
+          className="min-h-[58px] flex-row items-center justify-between gap-3 rounded-lg bg-ink-900 px-3.5 py-3 shadow-sm shadow-ink-900/20"
+          onPress={onOpenDetail}
+        >
+          <View className="min-w-0 flex-1 flex-row items-center gap-3">
+            <View className="h-10 w-10 items-center justify-center rounded-lg bg-river-700">
+              <Gauge color="#FFFFFF" size={19} strokeWidth={2.5} />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="text-[11px] font-extrabold uppercase text-river-100">
+                {detailLabel}
+              </Text>
+              <Text
+                numberOfLines={1}
+                className="mt-0.5 text-sm font-black text-white"
+              >
+                {getBestSectionLabel(flow, partFilter)}
+              </Text>
+            </View>
           </View>
-          <ChevronRight color="#1D6E86" size={19} strokeWidth={2.5} />
-        </View>
+          <View className="h-9 w-9 items-center justify-center rounded-lg bg-white/10">
+            <ChevronRight color="#FFFFFF" size={20} strokeWidth={2.7} />
+          </View>
+        </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -350,6 +546,8 @@ export function RiverFlowsScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRiverSelectorOpen, setIsRiverSelectorOpen] = useState(false);
+  const [selectedPartFilter, setSelectedPartFilter] =
+    useState<RiverPartFilter>("all");
   const [selectedRiver, setSelectedRiver] = useState<string | null>(null);
 
   const loadFlows = useCallback(async () => {
@@ -381,23 +579,40 @@ export function RiverFlowsScreen() {
   }, [flows, selectedRiver]);
 
   const profileCount = useMemo(
-    () => flows.reduce((sum, flow) => sum + flow.sections.length, 0),
-    [flows],
+    () =>
+      flows.reduce(
+        (sum, flow) =>
+          sum + getVisibleSections(flow, selectedPartFilter).length,
+        0,
+      ),
+    [flows, selectedPartFilter],
   );
   const navigableRiverCount = useMemo(
-    () => flows.filter((flow) => flow.navigableSections.length > 0).length,
-    [flows],
+    () =>
+      flows.filter(
+        (flow) =>
+          getVisibleNavigableSections(flow, selectedPartFilter).length > 0,
+      ).length,
+    [flows, selectedPartFilter],
   );
   const navigableSectionCount = useMemo(
-    () => flows.reduce((sum, flow) => sum + flow.navigableSections.length, 0),
-    [flows],
+    () =>
+      flows.reduce(
+        (sum, flow) =>
+          sum + getVisibleNavigableSections(flow, selectedPartFilter).length,
+        0,
+      ),
+    [flows, selectedPartFilter],
   );
   const displayedFlows = useMemo(
     () =>
-      selectedRiver
+      (selectedRiver
         ? flows.filter((flow) => flow.river === selectedRiver)
-        : flows,
-    [flows, selectedRiver],
+        : flows
+      ).filter(
+        (flow) => getVisibleSections(flow, selectedPartFilter).length > 0,
+      ),
+    [flows, selectedPartFilter, selectedRiver],
   );
   const latestMeasurement = flows
     .map((flow) => flow.latestMeasuredAt)
@@ -420,8 +635,7 @@ export function RiverFlowsScreen() {
                 Průtoky
               </Text>
               <Text className="text-sm font-bold leading-5 text-river-100">
-                Přehled řek podle sledovaných úseků, vodočtů a vodáckých
-                limitů.
+                Přehled řek podle sledovaných úseků, vodočtů a vodáckých limitů.
               </Text>
             </View>
             <View className="h-[74px] w-[74px] items-center justify-center rounded-lg bg-river-700">
@@ -463,8 +677,14 @@ export function RiverFlowsScreen() {
         }}
         onToggle={() => setIsRiverSelectorOpen((current) => !current)}
         selectedRiver={selectedRiver}
+        selectedPartFilter={selectedPartFilter}
         totalNavigableSections={navigableSectionCount}
         totalSections={profileCount}
+      />
+
+      <RiverPartFilterBar
+        selectedPartFilter={selectedPartFilter}
+        onSelect={setSelectedPartFilter}
       />
 
       <View className="flex-row items-center justify-between gap-3">
@@ -474,8 +694,10 @@ export function RiverFlowsScreen() {
           </Text>
           <Text className="text-sm font-semibold text-ink-600">
             {selectedRiver && displayedFlows[0]
-              ? getFlowNavigabilityLabel(displayedFlows[0]) +
-                " podle aktuálních limitů"
+              ? getFlowNavigabilityLabel(
+                  displayedFlows[0],
+                  selectedPartFilter,
+                ) + " podle aktuálních limitů"
               : navigableRiverCount +
                 " řek má aspoň jeden orientačně sjízdný úsek"}
           </Text>
@@ -506,7 +728,8 @@ export function RiverFlowsScreen() {
           <FlowCard
             flow={flow}
             key={flow.river}
-            onPress={() =>
+            partFilter={selectedPartFilter}
+            onOpenDetail={() =>
               navigation.navigate("RiverFlowDetails", { river: flow.river })
             }
           />

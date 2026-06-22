@@ -1,5 +1,5 @@
 export type RootStackParamList = {
-  MainTabs: undefined;
+  Zpět: undefined;
   EditTrip: {
     tripId: string;
   };

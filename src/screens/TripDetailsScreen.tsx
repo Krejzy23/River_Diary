@@ -36,6 +36,7 @@ import { TripShareCard } from "../components/TripShareCard";
 import { useTrips } from "../context/TripsContext";
 import { shareTripGpx, shareTripImage } from "../services/tripSharing";
 import { RootStackParamList } from "../types/navigation";
+import type { WaterCondition, WaterConditionStatus } from "../types/trip";
 import {
   formatDate,
   formatDateTime,
@@ -45,6 +46,7 @@ import {
 import { formatRouteDistance } from "../utils/geo";
 import {
   formatWaterConditionSummary,
+  getWaterConditionStatusLabel,
   formatWaterGaugeName,
   hasWaterCondition,
 } from "../utils/waterCondition";
@@ -59,18 +61,31 @@ type ActionButtonProps = {
   icon: ReactNode;
   label: string;
   onPress: () => void;
-  tone?: "default" | "danger";
+  tone?: "default" | "danger" | "secondary";
 };
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({
+  detail,
+  label,
+  value,
+}: {
+  detail?: string;
+  label: string;
+  value: string;
+}) {
   return (
-    <View className="min-h-[66px] flex-1 rounded-lg border border-river-100 bg-white/95 px-3 py-2.5">
+    <View className="min-h-[74px] flex-1 rounded-lg border border-river-100 bg-white/95 px-3 py-2.5">
       <Text className="text-[11px] font-extrabold uppercase text-ink-500">
         {label}
       </Text>
       <Text numberOfLines={1} className="mt-1 text-lg font-black text-ink-900">
         {value}
       </Text>
+      {detail ? (
+        <Text numberOfLines={1} className="mt-0.5 text-xs font-black uppercase text-river-800">
+          {detail}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -85,11 +100,13 @@ function SectionCard({ children }: { children: ReactNode }) {
 
 function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
   return (
-    <View className="flex-row items-center gap-2">
+    <View className="min-w-0 flex-1 flex-row items-center gap-2">
       <View className="h-9 w-9 items-center justify-center rounded-lg bg-river-700">
         {icon}
       </View>
-      <Text className="text-lg font-black text-ink-900">{title}</Text>
+      <Text numberOfLines={1} className="min-w-0 flex-1 text-lg font-black text-ink-900">
+        {title}
+      </Text>
     </View>
   );
 }
@@ -139,26 +156,13 @@ function ActionButton({
   onPress,
   tone = "default",
 }: ActionButtonProps) {
-  const content = (
-    <>
-      {icon}
-      <Text className="text-sm font-black text-white">{label}</Text>
-    </>
-  );
-
-  if (tone === "danger") {
-    return (
-      <Pressable
-        accessibilityLabel={label}
-        accessibilityRole="button"
-        disabled={disabled}
-        onPress={onPress}
-        className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-rose-700 px-3 disabled:opacity-50"
-      >
-        {content}
-      </Pressable>
-    );
-  }
+  const labelClass = tone === "secondary" ? "text-ink-900" : "text-white";
+  const className =
+    tone === "danger"
+      ? "h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-rose-700 px-3 disabled:opacity-50"
+      : tone === "secondary"
+        ? "h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-river-100 bg-white px-3 disabled:opacity-50"
+        : "h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-ink-900 px-3 disabled:opacity-50";
 
   return (
     <Pressable
@@ -166,10 +170,171 @@ function ActionButton({
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
-      className="h-12 flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-ink-900 px-3 disabled:opacity-50"
+      className={className}
     >
-      {content}
+      {icon}
+      <Text className={"text-sm font-black " + labelClass}>{label}</Text>
     </Pressable>
+  );
+}
+
+function waterConditionTone(status?: WaterConditionStatus) {
+  if (status === "dry" || status === "low") {
+    return {
+      badge: "bg-sun-100",
+      border: "border-sun-100",
+      feature: "border-sun-100 bg-sun-100",
+      icon: "#946200",
+      label: "text-sun-800",
+      panel: "border-sun-100 bg-white",
+      rail: "bg-sun-500",
+    };
+  }
+
+  if (status === "good") {
+    return {
+      badge: "bg-reed-100",
+      border: "border-reed-100",
+      feature: "border-reed-100 bg-reed-100",
+      icon: "#2D6A4F",
+      label: "text-reed-700",
+      panel: "border-reed-100 bg-white",
+      rail: "bg-reed-600",
+    };
+  }
+
+  if (status === "high" || status === "flood") {
+    return {
+      badge: "bg-rose-100",
+      border: "border-rose-100",
+      feature: "border-rose-100 bg-rose-100",
+      icon: "#BE123C",
+      label: "text-rose-800",
+      panel: "border-rose-100 bg-white",
+      rail: "bg-rose-600",
+    };
+  }
+
+  return {
+    badge: "bg-river-100",
+    border: "border-river-100",
+    feature: "border-river-100 bg-river-50",
+    icon: "#1D6E86",
+    label: "text-ink-600",
+    panel: "border-river-100 bg-white",
+    rail: "bg-ink-400",
+  };
+}
+
+function formatWaterLevel(value?: number) {
+  return value === undefined ? "-" : value.toFixed(0);
+}
+
+function formatWaterFlowValue(value?: number) {
+  if (value === undefined) {
+    return "-";
+  }
+
+  if (value >= 100) {
+    return value.toFixed(0);
+  }
+
+  if (value >= 10) {
+    return value.toFixed(1);
+  }
+
+  return value.toFixed(2);
+}
+
+function WaterConditionPanel({ condition }: { condition: WaterCondition }) {
+  const tone = waterConditionTone(condition.status);
+  const statusLabel = getWaterConditionStatusLabel(
+    condition.status,
+    condition.statusLabel,
+  );
+
+  return (
+    <View className={"overflow-hidden rounded-lg border shadow-sm shadow-ink-900/10 " + tone.panel}>
+      <View className={"h-1.5 " + tone.rail} />
+      <View className="gap-3 p-3.5">
+        <View className="flex-row items-start justify-between gap-3">
+          <SectionTitle
+            icon={<Droplets color="#FFFFFF" size={18} strokeWidth={2.5} />}
+            title="Podmínky na vodě"
+          />
+          <View className={"rounded-lg px-3 py-2 " + tone.badge}>
+            <Text className={"text-xs font-black uppercase " + tone.label}>
+              {statusLabel}
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-2">
+          <View className={"min-h-[92px] flex-1 rounded-lg border px-3 py-3 " + tone.feature}>
+            <Text className={"text-[11px] font-black uppercase " + tone.label}>
+              Hladina
+            </Text>
+            <View className="mt-1 flex-row items-end gap-1">
+              <Text className={"text-[32px] font-black leading-[36px] " + tone.label}>
+                {formatWaterLevel(condition.levelCm)}
+              </Text>
+              <Text className={"pb-1 text-sm font-black " + tone.label}>cm</Text>
+            </View>
+          </View>
+
+          <View className="min-h-[92px] flex-1 rounded-lg border border-river-100 bg-river-50 px-3 py-3">
+            <Text className="text-[11px] font-black uppercase text-ink-500">
+              Průtok
+            </Text>
+            <View className="mt-1 flex-row items-end gap-1">
+              <Text className="text-[32px] font-black leading-[36px] text-ink-900">
+                {formatWaterFlowValue(condition.flowM3s)}
+              </Text>
+              <Text className="pb-1 text-sm font-black text-ink-500">m³/s</Text>
+            </View>
+          </View>
+        </View>
+
+        <View className="gap-2 rounded-lg bg-river-50 p-3">
+          <DetailRow
+            body={formatWaterGaugeName(condition)}
+            icon={<Gauge color="#1D6E86" size={21} strokeWidth={2.5} />}
+            label="Vodočet"
+          />
+
+          <View className="flex-row gap-2">
+            {condition.measuredAt ? (
+              <DetailRow
+                body={formatDateTime(condition.measuredAt)}
+                icon={<CalendarDays color="#1D6E86" size={21} strokeWidth={2.5} />}
+                label="Čas měření"
+              />
+            ) : null}
+            <DetailRow
+              body={
+                condition.distanceKm !== undefined
+                  ? condition.distanceKm.toFixed(1) + " km od trasy"
+                  : "Podle uloženého výběru"
+              }
+              icon={<MapPin color="#1D6E86" size={21} strokeWidth={2.5} />}
+              label="Poloha"
+            />
+          </View>
+        </View>
+
+        {condition.note ? (
+          <View className={"rounded-lg px-3 py-2.5 " + tone.badge}>
+            <Text className={"text-sm font-black leading-5 " + tone.label}>
+              {condition.note}
+            </Text>
+          </View>
+        ) : null}
+
+        <Text className="text-xs font-semibold leading-[18px] text-ink-500">
+          Data jsou orientační snapshot z ČHMÚ open data pro uložený výlet.
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -202,6 +367,15 @@ export function TripDetailsScreen({
   const mappedDistance = hasRoute
     ? formatRouteDistance(trip.routeCoordinates ?? [])
     : null;
+  const waterTone = waterConditionTone(trip.waterCondition?.status);
+  const waterStatusLabel = hasWaterSnapshot
+    ? getWaterConditionStatusLabel(
+        trip.waterCondition?.status,
+        trip.waterCondition?.statusLabel,
+      )
+    : "Bez vody";
+  const crewLabel =
+    trip.crew.length === 1 ? "1 osoba" : trip.crew.length + " osob";
 
   const shareImageCard = async () => {
     if (!shareCardRef.current) {
@@ -275,7 +449,7 @@ export function TripDetailsScreen({
         onPress: async () => {
           try {
             await deleteTrip(trip.id);
-            navigation.navigate("MainTabs");
+            navigation.navigate("Zpět");
           } catch {
             Alert.alert(
               "Smazani selhalo",
@@ -302,50 +476,66 @@ export function TripDetailsScreen({
           </View>
 
           <View className="relative z-10 gap-3">
-            <View className="rounded-lg bg-ink-900 p-4">
-              <View className="flex-row items-start gap-3">
-                <View className="h-[52px] w-[52px] items-center justify-center rounded-lg bg-river-700">
-                  <Waves color="#FFFFFF" height={42} width={42} />
+            <View className="overflow-hidden rounded-lg bg-ink-900">
+              <View className={"h-1.5 " + waterTone.rail} />
+              <View className="gap-3 p-4">
+                <View className="flex-row items-start gap-3">
+                  <View className="h-[56px] w-[56px] items-center justify-center rounded-lg bg-river-700">
+                    <Waves color="#FFFFFF" height={44} width={44} />
+                  </View>
+
+                  <View className="min-w-0 flex-1">
+                    <View className="flex-row items-center gap-2">
+                      <Anchor color="#D6EDEA" size={15} strokeWidth={2.5} />
+                      <Text className="text-[11px] font-black uppercase text-river-100">
+                        Detail sjezdu
+                      </Text>
+                    </View>
+                    <Text
+                      numberOfLines={2}
+                      className="mt-1 text-[32px] font-black leading-[37px] text-white"
+                    >
+                      {trip.river}
+                    </Text>
+                    <View className="mt-2 flex-row items-start gap-2">
+                      <MapPin color="#D6EDEA" size={17} strokeWidth={2.5} />
+                      <Text className="min-w-0 flex-1 text-[15px] font-bold leading-[21px] text-river-100">
+                        {trip.from} -&gt; {trip.to}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
-                <View className="min-w-0 flex-1">
-                  <View className="flex-row items-center gap-2">
-                    <Anchor color="#D6EDEA" size={15} strokeWidth={2.5} />
+                <View className="flex-col flex-wrap gap-2">
+                  <View className="min-w-[136px] flex-1 rounded-lg bg-white/10 px-3 py-2">
                     <Text className="text-[11px] font-black uppercase text-river-100">
-                      Detail sjezdu
+                      Datum sjezdu
+                    </Text>
+                    <Text numberOfLines={1} className="mt-0.5 text-sm font-black text-white">
+                      {formatTripRange(trip.startedAt, trip.endedAt)}
                     </Text>
                   </View>
-                  <Text
-                    numberOfLines={2}
-                    className="mt-1 text-[31px] font-black leading-[36px] text-white"
-                  >
-                    {trip.river}
-                  </Text>
-                  <View className="mt-2 flex-row items-start gap-2">
-                    <MapPin color="#D6EDEA" size={17} strokeWidth={2.5} />
-                    <Text className="min-w-0 flex-1 text-[15px] font-bold leading-[21px] text-river-100">
-                      {trip.from} -&gt; {trip.to}
+                  <View className={"min-w-[150px] flex-1 rounded-lg px-3 py-2 " + waterTone.badge}>
+                    <Text numberOfLines={1} className={"text-[11px] font-black uppercase " + waterTone.label}>
+                      {waterStatusLabel}
+                    </Text>
+                    <Text numberOfLines={1} className={"mt-0.5 text-sm font-black " + waterTone.label}>
+                      {hasWaterSnapshot
+                        ? formatWaterConditionSummary(trip.waterCondition)
+                        : "Bez uloženého měření"}
                     </Text>
                   </View>
                 </View>
-              </View>
-
-              <View className="mt-4 rounded-lg bg-white/10 p-3">
-                <Text className="text-[11px] font-black uppercase text-river-100">
-                  Datum sjezdu
-                </Text>
-                <Text className="mt-1 text-[15px] font-black leading-[21px] text-white">
-                  {formatTripRange(trip.startedAt, trip.endedAt)}
-                </Text>
               </View>
             </View>
 
             <View className="flex-row gap-2">
               <MetricTile
+                detail={mappedDistance ? mappedDistance + " mapa" : "deník"}
                 label="Kilometry"
-                value={trip.distanceKm.toFixed(1)}
+                value={trip.distanceKm.toFixed(1) + " km"}
               />
-              <MetricTile label="Loď" value={trip.boatType} />
+              <MetricTile detail={crewLabel} label="Loď" value={trip.boatType} />
               <MetricTile label="Obtížnost" value={trip.difficulty} />
             </View>
 
@@ -357,11 +547,12 @@ export function TripDetailsScreen({
                 onPress={handleShare}
               />
               <ActionButton
-                icon={<Pencil color="#FFFFFF" size={18} strokeWidth={2.5} />}
+                icon={<Pencil color="#10202A" size={18} strokeWidth={2.5} />}
                 label="Upravit"
                 onPress={() =>
                   navigation.navigate("EditTrip", { tripId: trip.id })
                 }
+                tone="secondary"
               />
               <ActionButton
                 disabled={isSaving}
@@ -430,61 +621,8 @@ export function TripDetailsScreen({
           />
         </SectionCard>
 
-        {hasWaterSnapshot ? (
-          <SectionCard>
-            <SectionTitle
-              icon={<Droplets color="#FFFFFF" size={18} strokeWidth={2.5} />}
-              title="Podmínky na vodě"
-            />
-
-            <DetailRow
-              body={formatWaterGaugeName(trip.waterCondition)}
-              icon={<Gauge color="#1D6E86" size={21} strokeWidth={2.5} />}
-              label="Vodočet"
-            />
-
-            <DetailRow
-              body={formatWaterConditionSummary(trip.waterCondition)}
-              icon={<Droplets color="#1D6E86" size={21} strokeWidth={2.5} />}
-              label="Stav / průtok"
-            />
-
-            <View className="flex-row gap-2">
-              {trip.waterCondition?.measuredAt ? (
-                <DetailRow
-                  body={formatDateTime(trip.waterCondition.measuredAt)}
-                  icon={
-                    <CalendarDays color="#1D6E86" size={21} strokeWidth={2.5} />
-                  }
-                  label="Čas měření"
-                />
-              ) : null}
-              <DetailRow
-                body={
-                  trip.waterCondition?.distanceKm !== undefined
-                    ? trip.waterCondition.distanceKm.toFixed(1) + " km od trasy"
-                    : "Podle uloženého výběru"
-                }
-                icon={<MapPin color="#1D6E86" size={21} strokeWidth={2.5} />}
-                label="Poloha"
-              />
-            </View>
-
-            {trip.waterCondition?.note ? (
-              <View className="rounded-lg bg-sun-100 p-3">
-                <Text className="text-[11px] font-extrabold uppercase text-sun-800">
-                  Poznámka k vodě
-                </Text>
-                <Text className="mt-1 text-[15px] font-bold leading-[22px] text-sun-800">
-                  {trip.waterCondition.note}
-                </Text>
-              </View>
-            ) : null}
-
-            <Text className="text-xs font-semibold leading-[18px] text-ink-500">
-              Data jsou orientační snapshot z ČHMÚ open data pro uložený výlet.
-            </Text>
-          </SectionCard>
+        {hasWaterSnapshot && trip.waterCondition ? (
+          <WaterConditionPanel condition={trip.waterCondition} />
         ) : null}
 
         <SectionCard>
@@ -507,7 +645,7 @@ export function TripDetailsScreen({
           </View>
 
           <DetailRow
-            body={trip.crew.join(", ")}
+            body={trip.crew.length > 0 ? trip.crew.join(", ") : "Bez posádky"}
             icon={<Users color="#1D6E86" size={21} strokeWidth={2.5} />}
             label="Posádka"
           />

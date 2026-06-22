@@ -689,7 +689,7 @@ export const paddlingLimitOverridesByGaugeId: Record<
   },
   "0-203-1-161000": {
     sectionLabel: "Sázava / Střední tok / Zruč nad Sázavou",
-    minLevelCm: 67,
+    minLevelCm: 40,
     goodFromCm: 100,
     goodToCm: 160,
     tooHighCm: 200,

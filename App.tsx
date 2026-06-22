@@ -56,7 +56,7 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
           borderTopColor: "#D6EDEA",
-          height: 82,
+          height: 110,
           paddingBottom: 18,
           paddingTop: 8,
         },
@@ -164,7 +164,7 @@ function AppContent() {
         >
           <RootStack.Screen
             component={MainTabs}
-            name="MainTabs"
+            name="Zpět"
             options={{ headerShown: false }}
           />
 
