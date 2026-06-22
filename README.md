@@ -8,6 +8,31 @@ Vodácký deník pro ukládání sjezdů, posádek, lodí, tras a aktuálních v
 
 Preview profil je nastavený jako interní distribuce v `eas.json`, takže instalace může vyžadovat přístup k Expo/EAS projektu nebo registrované testovací zařízení.
 
+## Screenshoty appky
+
+<table>
+  <tr>
+    <td><img src="docs/images/auth.webp" width="260" alt="Přihlášení" /></td>
+    <td><img src="docs/images/Dash1.webp" width="260" alt="Dashboard s přehledem" /></td>
+    <td><img src="docs/images/Dash2.webp" width="260" alt="Dashboard se statistikami" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/flow.webp" width="260" alt="Přehled průtoků" /></td>
+    <td><img src="docs/images/flow1.webp" width="260" alt="Detail průtoků" /></td>
+    <td><img src="docs/images/flow2.webp" width="260" alt="Graf vodního stavu" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/new1.webp" width="260" alt="Nový výlet" /></td>
+    <td><img src="docs/images/new2.webp" width="260" alt="Výběr vodočtu" /></td>
+    <td><img src="docs/images/new3.webp" width="260" alt="Trasa výletu" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/history1.webp" width="260" alt="Historie výletů" /></td>
+    <td><img src="docs/images/history2.webp" width="260" alt="Detail uloženého výletu" /></td>
+    <td><img src="docs/images/settings.webp" width="260" alt="Nastavení aplikace" /></td>
+  </tr>
+</table>
+
 ## Funkce
 
 - ukládání vodáckých výletů do vlastního účtu
