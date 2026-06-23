@@ -7,6 +7,11 @@ Vodácký deník pro ukládání sjezdů, posádek, lodí, tras a aktuálních v
 [Otevřít preview build v EAS](https://expo.dev/accounts/krejzy23/projects/river-diary/builds/8769a8fe-900e-4939-ac18-77141384bf81)
 
 Preview profil je nastavený jako interní distribuce v `eas.json`, takže instalace může vyžadovat přístup k Expo/EAS projektu nebo registrované testovací zařízení.
+## Android build
+
+[Otevřít preview build v EAS](https://play.google.com/store/apps/details?id=com.aleskrejzl.riverdiary)
+
+Preview profil je nastavený jako interní distribuce v `eas.json`, takže instalace může vyžadovat přístup k Expo/EAS projektu nebo registrované testovací zařízení.
 
 ## Screenshoty appky
 
